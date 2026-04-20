@@ -1,0 +1,51 @@
+run:
+  max_num_steps: 50
+  wandb: False
+  project_name: baseline-reproduction
+  baseline_dir: data/baseline_results
+  log_path: ${PROJECT_PATH}/logs/baseline/blocksworld
+
+agent:
+  name: VanillaAgent
+  memory_size: 100
+  need_goal: True
+  use_parser: True
+
+llm:
+  xiaoai-gpt4-turbo: &gpt4_turbo
+    name: gpt
+    engine: gpt-4-turbo
+    context_length: 8192
+    max_tokens: 100
+    use_azure: False
+    temperature: 0.
+    top_p: 1
+    retry_delays: 20
+    max_retry_iters: 100
+    stop: "\n\n"
+    use_parser: False
+  gpt-4-turbo:
+    <<: *gpt4_turbo
+  xiaoai-gpt4o: &gpt4o
+    name: gpt
+    engine: gpt-4o
+    context_length: 8192
+    max_tokens: 100
+    use_azure: False
+    temperature: 0.
+    top_p: 1
+    retry_delays: 20
+    max_retry_iters: 100
+    stop: "\n\n"
+    use_parser: False
+  gpt-4o:
+    <<: *gpt4o
+
+env:
+  pddl:
+    name: pddl
+    game_name: [blockworld]
+    env_num_per_task: 10
+    check_actions: "check valid actions"
+    init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/VanillaAgent/pddl_vanilla_prompt.json
+    label_path: ${PROJECT_PATH}/data/pddl/blocksworld.jsonl

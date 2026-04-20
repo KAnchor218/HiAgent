@@ -1,5 +1,5 @@
 import pdb
-
+import time
 import openai
 import json
 import sys
@@ -46,6 +46,8 @@ class EvalWebshop(BaseTask):
         if llm is None:
             llm = load_llm(llm_name, llm_config)
         self.task_name = task_name
+        self.llm = llm
+        self.llm_name = llm_name
         self.agent = load_agent(agent_name, agent_config, llm)
         self.max_num_steps = max_num_steps
         self.start_idx = start_idx
@@ -94,7 +96,9 @@ class EvalWebshop(BaseTask):
         grounding_acc_count = 0
         score_change_record = []
         trajectory = []
-        
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         for step_id in range(max_num_steps):
             if step_id == 0:
                 self.env.sub_reward = 0.0
@@ -129,8 +133,12 @@ class EvalWebshop(BaseTask):
             trajectory.append({"Observation":observation, "id":step_id})
             trajectory.append({"Progress Rate":self.env.sub_reward, "id":step_id})
             if done:
+                elapsed_time = time.time() - start_time
                 id = int(idx.split("_")[1])
-                env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id]}
+                env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id],
+                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                if 'gpt' in self.llm_name:
+                    env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(id, reward==1, self.env.sub_reward, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory)
 
                 return reward, self.env.sub_reward, grounding_acc_count / (step_id + 1), score_change_record, step_id + 1
@@ -142,13 +150,17 @@ class EvalWebshop(BaseTask):
         print("Failed! Reached the max step")
         headers = {'X-Request-ID': request_id}
         response = requests.head(url, headers=headers)
+        elapsed_time = time.time() - start_time
         id = int(idx.split("_")[1])
-        env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id]}
+        env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id],
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
-        
+        except: example_prompt = None
+
         progress_rate = self.env.sub_reward
-        
+
         self.agentboard.log_example(id, bool(done), progress_rate, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory, example_prompt)
         
         return 0, progress_rate, grounding_acc_count / (step_id + 1), score_change_record, step_id + 1
@@ -160,6 +172,7 @@ class EvalWebshop(BaseTask):
         all_progress_rates = []  # sub-reward list
         grounding_acc_list = []
         score_states = []
+        num_steps = []
         cnt = 0
         for id in range(self.start_idx, self.end_idx):
             try:
@@ -173,6 +186,8 @@ class EvalWebshop(BaseTask):
             all_progress_rates.append(progress_rate)
             grounding_acc_list.append(grounding_acc)
             score_states.append(score_state)
+            num_steps.append(steps)
+            logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(id, score==1, progress_rate, steps))
 
         difficulties = self.difficulties
         success_rate = [1 if x == 1 else 0 for x in score_list]

@@ -182,7 +182,7 @@ class Jericho(BaseEnvironment):
     def step(self, action):
         if self.validate_check_valid_actions(action): # add a special action to check valid actions
             obs = "You can take the following actions: " + ", ".join(self._get_action_space())
-            self.update_info(action, obs) 
+            self.update_info(action, obs)
             self.infos["action_is_valid"] = True
             return self._get_obs(), self.reward, self.done, self.infos
         else:

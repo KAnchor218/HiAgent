@@ -13,6 +13,8 @@ from pddlgym.structs import Literal, Predicate
 
 nltk.download('punkt')
 
+# pddl_env.py 是作者基于 pddlgym 自行编写的封装层，用来实现和环境的交互逻辑，包括文本解析、状态更新、奖励计算等功能。它定义了一个 PDDL 类，继承自 BaseEnvironment，提供了 reset 和 step 方法来与环境进行交互，并且实现了文本到动作的转换和动作到文本的转换。这个类还维护了环境的状态、历史记录和其他相关信息，以便在评测过程中使用。
+
 @registry.register_environment("pddl")
 class PDDL(BaseEnvironment):
     def __init__(self, problem_index=0, 
@@ -53,6 +55,9 @@ class PDDL(BaseEnvironment):
         return self.history
     
     def _get_action_space(self):
+        '''
+         动态枚举当前状态下所有合法动作
+        '''
         if self.game_name in ["barman", "tyreworld"]:
             return [self.literal_to_text(literal) for literal in self.env.action_space.all_ground_literals(self.last_obs)] + ["check valid actions", "look around"]
         return [self.literal_to_text(literal) for literal in self.env.action_space.all_ground_literals(self.last_obs)] + ["check valid actions"]
@@ -168,6 +173,7 @@ class PDDL(BaseEnvironment):
     
     def constraint_satisfaction_metric(self, obs_literals, goal_literals):
         # determine the percentage of goal literals that are satisfied
+        # 计算的是progress_rate，即当前状态满足了多少比例的目标条件。这个指标可以用来衡量 agent 在完成任务过程中取得的进展程度，尤其是在奖励稀疏的环境中，可以提供更细粒度的反馈，帮助 agent 更好地学习和调整策略。
         satisfied = 0
         all = 0
         for literal in goal_literals:

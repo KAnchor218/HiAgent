@@ -1,4 +1,5 @@
 import json
+import time
 from agents import load_agent
 from environment import load_environment
 from llm import load_llm
@@ -44,6 +45,8 @@ class Evalalfworld(BaseTask):
         ####################  initialize llm and agent ##################
         if llm is None:
             llm = load_llm(llm_config.get("name", "gpt"), llm_config)
+        self.llm = llm
+        self.llm_name = llm_config.get("name", "gpt")
         self.agent = load_agent(agent_name, agent_config, llm)
         #################################################################
         
@@ -84,11 +87,13 @@ class Evalalfworld(BaseTask):
         grounding_acc_count = 0
         score_change_record = []
         logger.info("Step {:02} - Message: {}".format(0, init_ob))
-        
+
         trajectory = []
         trajectory.append({"Goal":goal, "id":0})
-        trajectory.append({"Observation":init_ob, "id":0})   
-        
+        trajectory.append({"Observation":init_ob, "id":0})
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         for i in range(0, self.max_num_steps):
             success, action = self.agent.run(init_prompt_dict=init_prompt_dict)
             
@@ -102,7 +107,7 @@ class Evalalfworld(BaseTask):
             logger.info("Step {:02} - Action: {}".format(i, action))
             trajectory.append({"Action":action, "id":i})
             
-            observation, reward, done, info = self.env.step(action)
+            observation, reward, done, info = self.env.step(action) # 可以得到当前的环境状态observation和agent的得分等信息，reward是当前动作得到的进展奖励，done是任务是否完成的标志，info包含一些额外的信息
             logger.info("Step {:02} - Observation: {}".format(i, observation))
 
             if "Task accomplished!" in observation and reward < 1.0:
@@ -121,25 +126,31 @@ class Evalalfworld(BaseTask):
             last_reward = reward
             self.agent.update(action=action, state=observation)
             if done:
-                
+                elapsed_time = time.time() - start_time
                 game_name = self.env.cur_task_name.split('/')[0]
-                env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty}
+                env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
+                               "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
+                if 'gpt' in self.llm_name:
+                    env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(index, True, reward, grounding_acc_count / (i + 1), score_change_record, env_details, trajectory)
-                    
-                return 1.0, True, grounding_acc_count / (i + 1), score_change_record, i
 
-        
+                return 1.0, True, grounding_acc_count / (i + 1), score_change_record, i + 1
+
+        elapsed_time = time.time() - start_time
         game_name = self.env.cur_task_name.split('/')[0]
-        env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty}
+        env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
+                       "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
         
         
         progress_rate = reward 
         
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
+        except: example_prompt = None
         self.agentboard.log_example(index, done, progress_rate, grounding_acc_count / (i + 1), score_change_record, env_details, trajectory, example_prompt)
 
-        return progress_rate, done, grounding_acc_count / (i + 1), score_change_record, i
+        return progress_rate, done, grounding_acc_count / (i + 1), score_change_record, i + 1
 
     def evaluate(self):
         self.env = load_environment('alfworld', self.env_cfg)
@@ -148,6 +159,7 @@ class Evalalfworld(BaseTask):
         grounding_accs = []
         srs = []
         difficulties = []
+        num_steps = []
 
         for id in range(self.num_exams):
 
@@ -168,7 +180,7 @@ class Evalalfworld(BaseTask):
                     scores.append(score)
                     grounding_accs.append(grounding_acc)
                     score_state_records.append(score_change_record)
-                    #print(f"the {i}th task: reward: {score}")
+                    num_steps.append(steps)
                     logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(id, is_done, score, steps))
 
         sr = sum(srs) * 1.0 / len(srs)

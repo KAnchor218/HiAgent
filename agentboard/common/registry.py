@@ -7,6 +7,7 @@
 
 
 class Registry:
+    # 'mapping' 变量在这里定义，为类变量
     mapping = {
         "environment_name_mapping": {},
         "agent_name_mapping": {},

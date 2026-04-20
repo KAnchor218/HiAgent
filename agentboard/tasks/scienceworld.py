@@ -35,6 +35,8 @@ class EvalScienceworld(BaseTask):
         
         if llm is None:
             llm = load_llm(llm_name, llm_config)
+        self.llm = llm
+        self.llm_name = llm_name
         self.agent = load_agent(agent_name, agent_config, llm)
         self.simplefied = env_config.get("simplefied", False)
         seed = env_config.get("seed", 42)
@@ -79,8 +81,10 @@ class EvalScienceworld(BaseTask):
         
         trajectory = []
         trajectory.append({"Goal":modified_goal, "id":0})
-        trajectory.append({"Observation":init_obs, "id":0})  
-        
+        trajectory.append({"Observation":init_obs, "id":0})
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         for i in range(self.max_num_steps):
             success, action = self.agent.run()
             logger.info("Step {:02} - Action: {}".format(i, action))
@@ -104,26 +108,32 @@ class EvalScienceworld(BaseTask):
                 score_change_record.append((i, reward))
             last_reward = reward
             if isDone:
-                
-                env_details = {"task_name": task_name, "goal": self.agent.goal, "difficulty": self.env.difficulty}
-                
+                elapsed_time = time.time() - start_time
+                env_details = {"task_name": task_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
+                               "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
+                if 'gpt' in self.llm_name:
+                    env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(index, True, 1.0, grounding_acc_count / (i + 1), score_change_record, env_details, trajectory)
-               
-                return 1.0, True, grounding_acc_count / (i + 1), score_change_record, i
+
+                return 1.0, True, grounding_acc_count / (i + 1), score_change_record, i + 1
             
             self.agent.update(action=action,
                               state=observation)
 
         
-        env_details = {"task_name": task_name, "goal": self.agent.goal, "difficulty": self.env.difficulty}
+        elapsed_time = time.time() - start_time
+        env_details = {"task_name": task_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
+                       "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
-        
+        except: example_prompt = None
+
         progress_rate = reward
-        
+
         self.agentboard.log_example(index, isDone, progress_rate, grounding_acc_count / (i + 1), score_change_record, env_details, trajectory, example_prompt)
 
-        return progress_rate, isDone, grounding_acc_count / (i + 1), score_change_record, i
+        return progress_rate, isDone, grounding_acc_count / (i + 1), score_change_record, i + 1
 
     def evaluate(self):
         scores = []
@@ -134,7 +144,7 @@ class EvalScienceworld(BaseTask):
         score_state_records = []
         grounding_accs = []
         srs = []
-        
+        num_steps = []
         difficulties = []
         
         for index, (k, v) in enumerate(labels.items()):
@@ -146,10 +156,11 @@ class EvalScienceworld(BaseTask):
             
             #print(f"Starting Task: {task_name}, variation: {var}, goal: {modified_goal}")
             logger.goal("Example {} | Goal: {}".format(index, f"task_name: {task_name}, var: {var}, {modified_goal}"))
-            score, done, grounding_acc, score_change_record, num_steps = self.evaluate_env(index, task_name, var, modified_goal)
-            
+            score, done, grounding_acc, score_change_record, steps = self.evaluate_env(index, task_name, var, modified_goal)
+
             difficulties.append(self.env.difficulty)
-            logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(index, done, score, num_steps + 1))
+            num_steps.append(steps)
+            logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(index, done, score, steps))
             count += 1
             if done:
                 srs.append(1.0)

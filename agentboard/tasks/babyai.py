@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import numpy as np
 
 from llm import load_llm
@@ -35,6 +36,8 @@ class EvalBabyai(BaseTask):
         ####################  initialize llm and agent ##################
         if llm is None:
             llm = load_llm(llm_name, llm_config)
+        self.llm = llm
+        self.llm_name = llm_name
         self.agent = load_agent(agent_name, agent_config, llm)
         #################################################################
         
@@ -114,12 +117,14 @@ class EvalBabyai(BaseTask):
         max_steps = self.max_num_steps
         reward = 0
         grounding_acc_count = 0
-        score_change_record = [] 
+        score_change_record = []
         last_reward = 0
         trajectory = []
         trajectory.append({"Goal":goal, "id":0})
-        trajectory.append({"Observation":init_obs, "id":0})   
-    
+        trajectory.append({"Observation":init_obs, "id":0})
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         for step_id in range(max_steps):
             
             success, action = self.agent.run()
@@ -148,23 +153,28 @@ class EvalBabyai(BaseTask):
             
             self.agent.update(action, state)
             if done:
-                
+                elapsed_time = time.time() - start_time
                 progress_rate = reward
-                
-                env_details = {"task_name": env.game_name, "goal": self.agent.goal, "difficulty": env.difficulty}
+                env_details = {"task_name": env.game_name, "goal": self.agent.goal, "difficulty": env.difficulty,
+                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                if 'gpt' in self.llm_name:
+                    env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(id, True, progress_rate, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory)
 
-                return True, progress_rate, step_id + 1, grounding_acc_count / (step_id + 1), score_change_record # return success, completion steps
-        
-        
-        env_details = {"goal": self.agent.goal, "task_name": env.game_name, "difficulty": env.difficulty}
+                return True, progress_rate, step_id + 1, grounding_acc_count / (step_id + 1), score_change_record
+
+        elapsed_time = time.time() - start_time
+        env_details = {"goal": self.agent.goal, "task_name": env.game_name, "difficulty": env.difficulty,
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
-        
+        except: example_prompt = None
+
         progress_rate = reward
-        
+
         self.agentboard.log_example(id, False, progress_rate, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory, example_prompt)
-        
+
         return False, progress_rate, step_id + 1, grounding_acc_count / (step_id + 1), score_change_record
     
     def evaluate(self):
@@ -174,6 +184,7 @@ class EvalBabyai(BaseTask):
         score_state_records = []
         grounding_accs = []
         difficulties = []
+        num_steps = []
         
             
         for id in range(num_envs):
@@ -183,12 +194,12 @@ class EvalBabyai(BaseTask):
             grounding_accs.append(grounding_acc_count)
             score_state_records.append(score_change_record)
             difficulties.append(self.env_configs[id]["difficulty"])
-            
+            num_steps.append(steps)
             if success:
                 success_rate.append(1)
             else:
                 success_rate.append(0)
-                    
+
             logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(id, success, progress_rate, steps))
 
         sr = sum(success_rate) * 1.0 / len(success_rate)

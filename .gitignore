@@ -1,0 +1,26 @@
+# 环境配置文件
+.env
+
+# 日志文件
+logs/
+
+# 临时文件
+temp/
+
+# 数据文件
+data/
+data_tmp/
+
+# Ai文件
+CLAUDE.md
+CLAUDE_zh.md
+.codex
+.claude/
+
+# 其他
+README.zh-CN.md
+README.md
+GITHUB_GUIDE.md
+PROJECT_DOCUMENTATION.zh-CN.md
+baseline_复现指标对比.md
+__pycache__/

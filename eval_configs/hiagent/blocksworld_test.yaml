@@ -1,5 +1,5 @@
 run:
-  max_num_steps: 30
+  max_num_steps: 10
   wandb: True
   project_name: eval-test
   baseline_dir: data/baseline_results
@@ -9,7 +9,7 @@ run:
 
 agent:
   name: ContextEfficientAgentV2
-  memory_size: 100
+  memory_size: 50
   need_goal: True
   use_parser: True
 
@@ -187,18 +187,6 @@ llm:
       dtype: float32
       ngpu: 4
       use_parser: True
-  codellama-34b:
-      name: vllm
-      # engine: codellama/CodeLlama-34b-Instruct-hf
-      engine: /home/aiscuser/hmk/models/CodeLlama-34b-Instruct-hf
-      max_tokens: 100
-      temperature: 0
-      top_p: 1
-      stop:
-      context_length: 16384
-      dtype: float32
-      ngpu: 8
-      use_parser: True
   lemur-70b:
       name: vllm
       engine: OpenLemur/lemur-70b-chat-v1
@@ -244,17 +232,7 @@ llm:
       dtype: float16
       ngpu: 2
       use_parser: True
-  codellama-13b:
-      name: vllm
-      engine: /mnt/workspace/Llama-X/results/codellama_merged_it9/checkpoint-518
-      max_tokens: 100
-      temperature: 0
-      top_p: 1
-      stop:
-      context_length: 16384
-      dtype: float32
-      ngpu: 4
-      use_parser: True
+
     
 env:
 
@@ -270,14 +248,14 @@ env:
 
   pddl:
     name: pddl
-    game_name: [gripper]
-    env_num_per_task: 20
+    game_name: [blockworld]
+    env_num_per_task: 2
     check_actions: "check valid actions"
     # problem_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # problem_index: [9]
-    init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/ContextAgent/pddl.json
-    # init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/VanillaAgent/pddl_vanilla_prompt.json
-    label_path: ${PROJECT_PATH}/data/pddl/gripper.jsonl
+    # init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/ContextAgent/pddl.json
+    init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/VanillaAgent/pddl_vanilla_prompt.json
+    label_path: ${PROJECT_PATH}/data/pddl/blocksworld.jsonl
 
   jericho:
     name: jericho

@@ -6,9 +6,6 @@ from .pddl import EvalPddl
 from .scienceworld import EvalScienceworld
 from .jericho import EvalJericho
 from .tool import EvalTool
-from .pddl import EvalPddl
-from .pddl_structured import EvalPddlSt
-from .babyai_train import EvalBabyaiTrain
 from .neural import EvalNeural
 
 from common.registry import registry
@@ -23,8 +20,6 @@ __all__ = [
     "EvalTool",
     "EvalWebshop",
     "EvalScienceworld",
-    "EvalPddlSt",
-    "EvalBabyaiTrain",
     "EvalNeural"
 ]
 
@@ -33,4 +28,3 @@ def load_task(name, run_config, llm_config, agent_config, env_config, llm=None):
     task = registry.get_task_class(name).from_config(run_config, llm_config, agent_config, env_config, llm=llm)
 
     return task
-

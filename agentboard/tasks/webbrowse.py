@@ -1,4 +1,5 @@
 import subprocess
+import time
 import json
 import os
 import pdb
@@ -53,6 +54,8 @@ class EvalWebBrowse(BaseTask):
         
         if llm is None:
             llm = load_llm(llm_name, llm_config)
+        self.llm = llm
+        self.llm_name = llm_name
         self.agent = load_agent(agent_name, agent_config, llm)
         self.max_num_steps = max_num_steps
         self.parsing_failure_th = parsing_failure_th
@@ -112,9 +115,11 @@ URL: {url}"""
         reset_session = 0
         step_id = 0
         trajectory = []
-        
+
         trajectory.append({"Goal":self.env.goal, "id":0})
-        
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         while step_id < self.max_num_steps:
             obs_step = self.env.state["observation"]["text"]
             page_step = self.env.state["info"]["page"]
@@ -225,9 +230,13 @@ URL: {url}"""
         grounding_acc = (step_id + 1 - grounding_error_count) / (step_id + 1)
         
         
-        env_details = {"task_name": "webbrowse", "goal": self.agent.goal, "difficulty": self.difficulties[int(idx)]}
+        elapsed_time = time.time() - start_time
+        env_details = {"task_name": "webbrowse", "goal": self.agent.goal, "difficulty": self.difficulties[int(idx)],
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
+        except: example_prompt = None
         self.agentboard.log_example(idx, success, progress_score, grounding_acc, score_change_record, env_details, trajectory, example_prompt)
 
         return success, progress_score, grounding_acc, score_change_record, step_id + 1
@@ -249,6 +258,7 @@ URL: {url}"""
         progress_scores = []
         grounding_acc_avg = []
         score_state_avg = []
+        num_steps = []
 
         for idx, config_file in enumerate(self.test_file_list):
             
@@ -264,6 +274,8 @@ URL: {url}"""
                 scores.append(success)
                 grounding_acc_avg.append(grounding_acc)
                 score_state_avg.append(score_state)
+                num_steps.append(steps)
+                logger.finish("Example {} | Success: {} , Progress Rate: {} , Steps: {}\n".format(idx, success, progress_score, steps))
 
                 if self.env_config["save_trace_enabled"]:
                     self.env.save_trace(

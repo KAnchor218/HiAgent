@@ -292,12 +292,13 @@ class SummaryLogger:
 class TaskLogger:
     def __init__(self, task_name, log_path, max_num_steps=30, baseline_dir= "data/baseline_results"):
         self.task_name = task_name
-        
+
         columns=["id", "is_done", "env", "reward", "grounding_accuracy", "reward_wrt_step", "trajectory"]
         self.table = wandb.Table(columns=columns)
         self.max_num_steps = max_num_steps
         self.baseline_dir = baseline_dir
         self.columns = columns
+        self._episode_stats = []  # 收集每个 episode 的 elapsed_time 和 token 用量
         
         self.log_path = os.path.join(log_path, "logs", f"{task_name}.jsonl")
         self.log_summary_path = os.path.join(log_path, f"{task_name}.txt")
@@ -510,25 +511,61 @@ class TaskLogger:
             f.write(json.dumps(sample_result, indent=2)+'\n')
     
     def save_sample_data_to_file_overview(self, id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory):
+        elapsed = env_details.get("elapsed_time", None)
+        steps = env_details.get("steps", None)
+        usage = env_details.get("usage", None)
+        time_str = f", [time]: {elapsed}s" if elapsed is not None else ""
+        steps_str = f", [steps]: {steps}" if steps is not None else ""
+        if usage is not None:
+            token_str = f", [tokens]: prompt={usage.get('prompt_tokens', 0)} completion={usage.get('completion_tokens', 0)} total={usage.get('total_tokens', 0)}"
+        else:
+            token_str = ""
         with open(self.log_summary_path, "a+") as f:
-            f.write(f"[EXP] {id}: [success_rate]: {is_done}, [progress_rate]: {reward}, [grounding_acc]: {grounding_accuracy}, [score_state]: {score_change_record} \n")
+            f.write(f"[EXP] {id}: [success_rate]: {is_done}, [progress_rate]: {reward}, [grounding_acc]: {grounding_accuracy}, [score_state]: {score_change_record}{steps_str}{time_str}{token_str} \n")
 
         
            
     def log_example(self, id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory, example_prompt=None):
         self.save_sample_data_to_file_detailed(id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory, example_prompt) # log to file
-        self.save_sample_data_to_file_overview(id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory) 
-        
+        self.save_sample_data_to_file_overview(id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory)
+        self._episode_stats.append({
+            "id": id,
+            "elapsed_time": env_details.get("elapsed_time"),
+            "steps": env_details.get("steps"),
+            "usage": env_details.get("usage"),
+        })
         self.log_example_data(id, is_done, reward, grounding_accuracy, score_change_record, env_details, trajectory) # log to wandb table
         self.update()
         
     
     
     def log_summary(self, success_rate, reward_score, grounding_acc, score_steps, hard_sr=None, hard_rs=None, easy_sr=None, easy_rs=None):
-        # wandb.log({"{task}/success_rate".format(task=self.task_name) : success_rate,
-        #            "{task}/reward_score".format(task=self.task_name) : reward_score,
-        #            "{task}/grounding_acc".format(task=self.task_name) : grounding_acc})
-        
+        # 汇总时间和 token 统计
+        times = [s["elapsed_time"] for s in self._episode_stats if s["elapsed_time"] is not None]
+        total_time = sum(times) if times else None
+        avg_time = total_time / len(times) if times else None
+
+        all_steps = [s["steps"] for s in self._episode_stats if s["steps"] is not None]
+        avg_steps = sum(all_steps) / len(all_steps) if all_steps else None
+
+        usages = [s["usage"] for s in self._episode_stats if s["usage"] is not None]
+        total_prompt = sum(u.get("prompt_tokens", 0) for u in usages) if usages else None
+        total_completion = sum(u.get("completion_tokens", 0) for u in usages) if usages else None
+        total_tokens = sum(u.get("total_tokens", 0) for u in usages) if usages else None
+
+        with open(self.log_summary_path, "a+") as f:
+            f.write("\n[SUMMARY]\n")
+            if all_steps:
+                f.write(f"  Avg Steps    : {round(avg_steps, 1)}  |  Total Episodes: {len(all_steps)}\n")
+            if times:
+                f.write(f"  Total Time   : {round(total_time, 2)}s  |  Avg per Episode: {round(avg_time, 2)}s\n")
+            if usages:
+                f.write(f"  Total Tokens : {total_tokens}  (prompt={total_prompt}, completion={total_completion})\n")
+                avg_total = total_tokens // len(usages)
+                avg_prompt = total_prompt // len(usages)
+                avg_comp = total_completion // len(usages)
+                f.write(f"  Avg Tokens/Episode: {avg_total}  (prompt={avg_prompt}, completion={avg_comp})\n")
+
         # log success rate, reward score, grounding accuracy to a table
         metrics_table = wandb.Table(columns=["Metric Name", "Metric Value (%)"])
         metrics_table.add_data("Progress Rate", reward_score)

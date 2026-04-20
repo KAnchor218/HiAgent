@@ -5,6 +5,7 @@ from common.registry import registry
 from .ours_agent import OurAgent
 from .cme_final import ContextEfficientAgentV2
 
+# __all__ 用于定义当使用 'from agents import *' 时会被导入的模块成员列表。
 __all__ = ["VanillaAgent", "ReactAgent", "CustomReactAgent", "OurAgent", "ContextEfficientAgentV2"]
 
 

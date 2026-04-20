@@ -8,12 +8,34 @@ run:
 # --wandb --max_num_steps 30 --project_name ... --baseline_dir ... --log_path ...
 
 agent:
-  name: ContextEfficientAgent
+  name: ContextEfficientAgentV2
   memory_size: 100
   need_goal: True
   use_parser: True
 
 llm:
+  xiaoai-gpt4o:
+    name: gpt
+    engine: gpt-4o
+    context_length: 8192
+    use_azure: False
+    temperature: 0.
+    top_p: 1
+    retry_delays: 20
+    max_retry_iters: 100
+    stop: "\n\n"
+    use_parser: False
+  xiaoai-gpt4-turbo:
+    name: gpt
+    engine: gpt-4-turbo
+    context_length: 8192
+    use_azure: False
+    temperature: 0.
+    top_p: 1
+    retry_delays: 20
+    max_retry_iters: 100
+    stop: "\n\n"
+    use_parser: False
   gpt-4-turbo:
     name: gpt
     engine: gpt-4-turbo

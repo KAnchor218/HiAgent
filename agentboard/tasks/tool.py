@@ -43,6 +43,8 @@ class EvalTool(BaseTask):
         self.max_num_steps = max_num_steps
         if llm is None:
             llm = load_llm( llm_config["name"] , llm_config)
+        self.llm = llm
+        self.llm_name = llm_config.get("name", "gpt")
 
         self.init_prompt_path = agent_config["init_prompt_path"]
         agent_config["init_prompt_path"] = None
@@ -177,6 +179,9 @@ class EvalTool(BaseTask):
         last_reward = 0.0
         score_change_record = []
         trajectory = []
+        if 'gpt' in self.llm_name:
+            self.llm.clear_usage()
+        start_time = time.time()
         trajectory.append({"Goal":goal, "id":0})
         trajectory.append({"Observation":init_obs, "id":0})
 
@@ -260,10 +265,14 @@ class EvalTool(BaseTask):
         
         logger.info("Example {} | Ground Truth: {}".format(id, str(ground_truth)) )
         
-        env_details = {"task_name": tool, "goal": goal, "difficulty": difficulty}
+        elapsed_time = time.time() - start_time
+        env_details = {"task_name": tool, "goal": goal, "difficulty": difficulty,
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+        if 'gpt' in self.llm_name:
+            env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
-        except: example_prompt = None  
-        
+        except: example_prompt = None
+
         progress_rate = reward
         self.agentboard.log_example(id, success, progress_rate, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory, example_prompt)
 
