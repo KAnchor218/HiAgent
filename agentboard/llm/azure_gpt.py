@@ -60,6 +60,7 @@ class OPENAI_GPT_AZURE:
             messages=messages,
             stop = self.stop,
             temperature = self.temperature,
+            top_p = self.top_p,
             max_tokens = self.max_tokens,
         )
 
@@ -78,6 +79,7 @@ class OPENAI_GPT_AZURE:
                 logprobs = logprobs,
                 n = num_return_sequences,
                 temperature = self.temperature,
+                top_p = self.top_p,
                 stop = self.stop,
                 max_tokens = self.max_tokens,
             )
@@ -92,6 +94,7 @@ class OPENAI_GPT_AZURE:
                 prompt = prompt,
                 stop = self.stop,
                 temperature = self.temperature,
+                top_p = self.top_p,
                 max_tokens = self.max_tokens
             )
             

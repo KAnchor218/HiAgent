@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 import numpy as np
 
@@ -51,6 +52,14 @@ class EvalJericho(BaseTask):
     def load_annotation(self, path):
         all_annotations = []
         difficulty = []
+
+        def normalize_subgoal_text(text):
+            text = text.strip()
+            # test.jsonl stores milestones as "Subgoal N: ...", but the
+            # environment observations do not include that prefix.
+            text = re.sub(r"^Subgoal\s*\d+\s*:\s*", "", text, flags=re.IGNORECASE)
+            return text.strip()
+
         with open(path, 'r') as f:
             for line in f:
                 if line.strip() == '':
@@ -59,13 +68,16 @@ class EvalJericho(BaseTask):
                 if "subgoals" in line and "subgoals_1" not in line:
                     subgoals = line["subgoals"]
                     if isinstance(subgoals, str):
-                        subgoals = [s.strip() for s in subgoals.split('\n') if s.strip()]
+                        subgoals = [normalize_subgoal_text(s) for s in subgoals.split('\n') if s.strip()]
                     all_annotations.append(subgoals)
                 else:
                     for key in line:
                         annotation = []
                         if "subgoals" in key:
-                            annotation.append(line[key])
+                            value = line[key]
+                            if isinstance(value, str):
+                                value = normalize_subgoal_text(value)
+                            annotation.append(value)
                     all_annotations.append(annotation)
                     
                 if "difficulty" in line:
@@ -131,6 +143,7 @@ class EvalJericho(BaseTask):
         trajectory.append({"Observation":init_obs, "id":0})   
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         for step_id in range(max_steps):
             
@@ -161,9 +174,11 @@ class EvalJericho(BaseTask):
             except: example_prompt = None
             trajectory.append({"Prompt": example_prompt, "id": step_id})  
             if done:
-                elapsed_time = time.time() - start_time
+                elapsed_time = self.get_effective_elapsed_time(start_time)
+                retry_overhead_time = self.get_llm_retry_overhead_time()
                 env_details = {"task_name": env.game_name, "goal": self.agent.goal, "difficulty": env.difficulty,
-                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                               "llm_retry_overhead_time": round(retry_overhead_time, 2)}
                 if 'gpt' in self.llm_name:
                     env_details.update({'usage': self.llm.get_usage()})
                 progress_rate = reward
@@ -173,9 +188,11 @@ class EvalJericho(BaseTask):
 
                 return env.won, progress_rate, step_id + 1, grounding_acc_count / (step_id + 1), score_change_record
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         env_details = {"goal": self.agent.goal, "task_name": env.game_name, "difficulty": env.difficulty,
-                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         if 'gpt' in self.llm_name:
             env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()

@@ -138,6 +138,7 @@ class EvalPddl(BaseTask):
         # 只有 openai_gpt.py 和 msal_gpt.py 实现了clear_usage/get_usage 方法，所以只检查gpt
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         for step_id in range(max_steps):
 
@@ -170,9 +171,11 @@ class EvalPddl(BaseTask):
             except: example_prompt = None
             trajectory.append({"Prompt": example_prompt, "id": step_id})  
             if done:
-                elapsed_time = time.time() - start_time
+                elapsed_time = self.get_effective_elapsed_time(start_time)
+                retry_overhead_time = self.get_llm_retry_overhead_time()
                 env_details = {"task_name": env.game_name, "goal": self.agent.goal, "difficulty": env.difficulty,
-                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                               "llm_retry_overhead_time": round(retry_overhead_time, 2)}
                 # 统计token的花费情况，只有gpt模型才统计token使用情况
                 if 'gpt' in self.llm_name:
                     env_details.update({'usage': self.llm.get_usage()})
@@ -184,9 +187,11 @@ class EvalPddl(BaseTask):
                 return env.won, progress_rate, step_id + 1, grounding_acc_count / (step_id + 1), score_change_record
 
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         env_details = {"task_name": env.game_name, "goal": self.agent.goal, "difficulty": env.difficulty,
-                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         if 'gpt' in self.llm_name:
             env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()

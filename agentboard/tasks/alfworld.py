@@ -93,6 +93,7 @@ class Evalalfworld(BaseTask):
         trajectory.append({"Observation":init_ob, "id":0})
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         for i in range(0, self.max_num_steps):
             success, action = self.agent.run(init_prompt_dict=init_prompt_dict)
@@ -126,20 +127,24 @@ class Evalalfworld(BaseTask):
             last_reward = reward
             self.agent.update(action=action, state=observation)
             if done:
-                elapsed_time = time.time() - start_time
+                elapsed_time = self.get_effective_elapsed_time(start_time)
+                retry_overhead_time = self.get_llm_retry_overhead_time()
                 game_name = self.env.cur_task_name.split('/')[0]
                 env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
-                               "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
+                               "elapsed_time": round(elapsed_time, 2), "steps": i + 1,
+                               "llm_retry_overhead_time": round(retry_overhead_time, 2)}
                 if 'gpt' in self.llm_name:
                     env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(index, True, reward, grounding_acc_count / (i + 1), score_change_record, env_details, trajectory)
 
                 return 1.0, True, grounding_acc_count / (i + 1), score_change_record, i + 1
 
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         game_name = self.env.cur_task_name.split('/')[0]
         env_details = {"task_name": game_name, "goal": self.agent.goal, "difficulty": self.env.difficulty,
-                       "elapsed_time": round(elapsed_time, 2), "steps": i + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": i + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         
         
         progress_rate = reward 

@@ -33,11 +33,15 @@ class MSAL_GPT:
         self.context_length = context_length
         self.system_message = system_message
         self.usage = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
+        self.retry_overhead_time = 0.0
         # self.init_api_key()
 
     def clear_usage(self):
         for k, v in self.usage.items():
             self.usage[k] = 0
+
+    def clear_runtime_stats(self):
+        self.retry_overhead_time = 0.0
 
     def update_usage(self, response):
         for k, v in response.usage.items():
@@ -45,6 +49,9 @@ class MSAL_GPT:
 
     def get_usage(self):
         return self.usage
+
+    def get_retry_overhead_time(self):
+        return self.retry_overhead_time
         
     # def init_api_key(self):
     #     if self.use_azure:
@@ -64,6 +71,7 @@ class MSAL_GPT:
             n=1,
             messages=messages,
             temperature=self.temperature,
+            top_p=self.top_p,
             max_tokens=self.max_tokens
             )
         return response.choices[0].message.content
@@ -77,12 +85,16 @@ class MSAL_GPT:
             {"role": "user", "content": prompt}
         ]
         for attempt in range(self.max_retry_iters):
+            attempt_start = time.time()
             try:
                 return True, self.llm_inference(prompt) # return success, completion
             except Exception as e:
+                self.retry_overhead_time += time.time() - attempt_start
                 print(f"Error on attempt {attempt + 1}, {str(e)}")
                 if attempt < self.max_retry_iters - 1:  # If not the last attempt
+                    sleep_start = time.time()
                     time.sleep(self.retry_delays)  # Wait before retrying
+                    self.retry_overhead_time += time.time() - sleep_start
 
                 else:
                     print("Failed to get completion after multiple attempts.")

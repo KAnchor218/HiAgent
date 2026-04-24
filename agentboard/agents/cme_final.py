@@ -213,7 +213,7 @@ Instructions:
 1. You cannot output two subgoals consecutively. 
 2. Subgoal must be one line of text and does not print any newline characters. 
 3. Each subgoal must be followed by the execution of at least one valid action. If the current action fails, you need to execute "check valid actions" to get a list of valid actions and select one from the list.
-4. Detailed trajectory information (action-observation pair) of previously satisfied subgoals will be hidden for context efficiency. If you believe that the detailed trajectory information of a particular subgoal is crucial for the current subgoal, you can use Action: \"retrieve(subgoal_id_1, subgoal_id_2, ...)\" to obtain the detailed trajectory information.
+4. **Detailed trajectory information (action-observation pair) of previously satisfied subgoals will be hidden for context efficiency. If you believe that the detailed trajectory information of a particular subgoal is crucial for the current subgoal, you can use Action: \"retrieve(subgoal_id_1, subgoal_id_2, ...)\" to obtain the detailed trajectory information.**
         """
        
 

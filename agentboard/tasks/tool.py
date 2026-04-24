@@ -181,6 +181,7 @@ class EvalTool(BaseTask):
         trajectory = []
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         trajectory.append({"Goal":goal, "id":0})
         trajectory.append({"Observation":init_obs, "id":0})
@@ -265,9 +266,11 @@ class EvalTool(BaseTask):
         
         logger.info("Example {} | Ground Truth: {}".format(id, str(ground_truth)) )
         
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         env_details = {"task_name": tool, "goal": goal, "difficulty": difficulty,
-                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         if 'gpt' in self.llm_name:
             env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()

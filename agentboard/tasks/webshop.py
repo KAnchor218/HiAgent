@@ -98,6 +98,7 @@ class EvalWebshop(BaseTask):
         trajectory = []
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         for step_id in range(max_num_steps):
             if step_id == 0:
@@ -133,10 +134,12 @@ class EvalWebshop(BaseTask):
             trajectory.append({"Observation":observation, "id":step_id})
             trajectory.append({"Progress Rate":self.env.sub_reward, "id":step_id})
             if done:
-                elapsed_time = time.time() - start_time
+                elapsed_time = self.get_effective_elapsed_time(start_time)
+                retry_overhead_time = self.get_llm_retry_overhead_time()
                 id = int(idx.split("_")[1])
                 env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id],
-                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                               "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                               "llm_retry_overhead_time": round(retry_overhead_time, 2)}
                 if 'gpt' in self.llm_name:
                     env_details.update({'usage': self.llm.get_usage()})
                 self.agentboard.log_example(id, reward==1, self.env.sub_reward, grounding_acc_count / (step_id + 1), score_change_record, env_details, trajectory)
@@ -150,10 +153,12 @@ class EvalWebshop(BaseTask):
         print("Failed! Reached the max step")
         headers = {'X-Request-ID': request_id}
         response = requests.head(url, headers=headers)
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         id = int(idx.split("_")[1])
         env_details = {"task_name": "webshop", "goal": self.agent.goal, "difficulty": self.difficulties[id],
-                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         if 'gpt' in self.llm_name:
             env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()
@@ -244,4 +249,3 @@ class EvalWebshop(BaseTask):
                    baseline_dir=baseline_dir,
                    log_path = log_path
                    )
-

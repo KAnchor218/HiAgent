@@ -119,6 +119,7 @@ URL: {url}"""
         trajectory.append({"Goal":self.env.goal, "id":0})
         if 'gpt' in self.llm_name:
             self.llm.clear_usage()
+        self.reset_llm_runtime_stats()
         start_time = time.time()
         while step_id < self.max_num_steps:
             obs_step = self.env.state["observation"]["text"]
@@ -230,9 +231,11 @@ URL: {url}"""
         grounding_acc = (step_id + 1 - grounding_error_count) / (step_id + 1)
         
         
-        elapsed_time = time.time() - start_time
+        elapsed_time = self.get_effective_elapsed_time(start_time)
+        retry_overhead_time = self.get_llm_retry_overhead_time()
         env_details = {"task_name": "webbrowse", "goal": self.agent.goal, "difficulty": self.difficulties[int(idx)],
-                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1}
+                       "elapsed_time": round(elapsed_time, 2), "steps": step_id + 1,
+                       "llm_retry_overhead_time": round(retry_overhead_time, 2)}
         if 'gpt' in self.llm_name:
             env_details.update({'usage': self.llm.get_usage()})
         try: example_prompt = self.agent.get_example_prompt()

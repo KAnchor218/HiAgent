@@ -557,6 +557,7 @@ class TaskLogger:
             f.write("\n[SUMMARY]\n")
             if all_steps:
                 f.write(f"  Avg Steps    : {round(avg_steps, 1)}  |  Total Episodes: {len(all_steps)}\n")
+            f.write(f"  Success Rate : {success_rate:.4f}  |  Progress Rate: {reward_score:.4f}  |  Grounding Acc: {grounding_acc:.4f}\n")
             if times:
                 f.write(f"  Total Time   : {round(total_time, 2)}s  |  Avg per Episode: {round(avg_time, 2)}s\n")
             if usages:

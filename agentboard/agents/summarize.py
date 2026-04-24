@@ -3,7 +3,7 @@ TrajectorySummarizer：HiAgent 论文 §3.3 (Observation Summarization) 模块�
 
 背景：HiAgent 官方仓库 (HiAgent2024/HiAgent) 的 agentboard/agents/ 目录下缺失 summarize.py，
 issue #3 与 #4 均反映该模块缺失但作者尚未修复。本文件依据论文 §3.3 给出的 prompt 模板
-以及 cme_final.py 中对 TrajectorySummarizer 的调用（cme_final.py:160-182）复刻。
+以及 cme_final.py 中对 TrajectorySummarizer 的调用复刻。
 
 调用（来源：cme_final.py）：
     summarizer = TrajectorySummarizer(self.llm_model)
@@ -17,7 +17,7 @@ issue #3 与 #4 均反映该模块缺失但作者尚未修复。本文件依据�
   会被填入 cme_final.py 中作为压缩后的 Observation。
 
 LLM 接口签名（来源：agentboard/llm/openai_gpt.py:74 等）：
-    llm_model.generate(system_message: str, prompt: str) -> Tuple[bool, str]
+    llm_model.generate(system_message: str, prompt: str) -> Tuple[bool, Optional[str]]
 """
 
 from typing import List, Sequence, Tuple
@@ -44,7 +44,11 @@ If there are no valid actions taken, you need to analyze the reason.
 ###Output:"""
 
 
-_SYSTEM_MESSAGE = "You are a helpful assistant."
+_SYSTEM_MESSAGE = "You are a helpful assistant that summarizes agent trajectories concisely."
+
+# 当 LLM 输出为空、且轨迹中也无 Observation 可降级时使用的占位文本。沿用旧实现的措辞，
+# 避免 cme_final.py 把空串写回 history 后，下游 prompt 里出现裸的 "Observation:" 空行。
+_EMPTY_SUMMARY_PLACEHOLDER = "Subgoal completed."
 
 
 class TrajectorySummarizer:
@@ -122,6 +126,11 @@ class TrajectorySummarizer:
                 # LLM 调用失败：退化为「最后一个 Observation」，与 cme_final.py 中
                 # summarization=False 分支的行为对齐，避免训练流程中断。
                 summary = self._last_observation(trajectory)
+
+            # 兜底：空 trajectory 或无 Observation 时，_last_observation 会返回空串，
+            # 直接写回 history 会导致下游 prompt 里出现空 Observation。
+            if not summary:
+                summary = _EMPTY_SUMMARY_PLACEHOLDER
 
             summaries.append(summary)
         return summaries
