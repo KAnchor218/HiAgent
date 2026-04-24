@@ -20,7 +20,7 @@ python agentboard/eval_main.py \
     --model gpt-4-turbo \
     --agent ContextEfficientAgentV2 \
     --memory_size 100 \
-    --max_num_steps 50
+    --max_num_steps 30
 ```
 
 `eval_main.py` 的 `main()` 函数执行以下步骤：
@@ -46,6 +46,56 @@ python agentboard/eval_main.py \
 
 第5步：遍历每个 task_name，调用 load_task()
 ```
+
+### 2.1.1 `llm:` 配置字段如何生效
+
+以 `eval_configs/hiagent/blocksworld.yaml` 中的这两段配置为例：
+
+```yaml
+llm:
+  xiaoai-gpt4o:
+    name: gpt
+    engine: gpt-4o
+    context_length: 8192
+    use_azure: False
+    temperature: 0.
+    top_p: 1
+    retry_delays: 20
+    max_retry_iters: 100
+    stop: "\n\n"
+    use_parser: False
+  xiaoai-gpt4-turbo:
+    name: gpt
+    engine: gpt-4-turbo
+    ...
+```
+
+这些字段的生效链路如下：
+
+1. 启动脚本把 `MODEL=xiaoai-gpt4-turbo` 作为 `--model` 传给 `eval_main.py`
+2. `eval_main.py` 用 `llm_config = llm_config[args.model]` 从 YAML 的 `llm:` 节中取出对应子配置
+3. `load_llm(llm_config["name"], llm_config)` 根据 `name` 选择后端类并实例化
+4. 后端类的 `from_config()` 从该子配置中提取字段，保存到 `self.engine`、`self.temperature`、`self.context_length` 等成员
+5. Agent 在运行时通过 `llm_model.generate(...)` 发请求，并通过 `llm_model.context_length` 做上下文裁剪
+
+常见字段的含义：
+
+- `xiaoai-gpt4o` / `xiaoai-gpt4-turbo`：只是内部别名，给 `--model` 用；不是直接发给 OpenAI 的模型名
+- `name: gpt`：决定后端类是 `OPENAI_GPT`
+- `engine: gpt-4o` / `gpt-4-turbo`：这是实际传给 `openai.ChatCompletion.create(model=...)` 的模型名
+- `use_azure: False`：决定走普通 OpenAI key 路径，而不是 Azure API 路径
+- `temperature`：在请求时传给 `ChatCompletion.create`
+- `top_p`：在请求时传给 `ChatCompletion.create(top_p=...)`，控制 nucleus sampling
+- `stop`：在请求时传给 `ChatCompletion.create(stop=...)`
+- `retry_delays`：请求报错后，下一次重试前 `sleep` 的秒数
+- `context_length`：不会直接发给 OpenAI，但会挂到 `llm_model.context_length` 上，然后被 Agent 用来裁剪 prompt/history
+
+其中要特别区分两个字段：
+
+- `--model xiaoai-gpt4-turbo` 选中的是 YAML 里的配置别名
+- 真正发给 API 的模型名来自该别名对应配置里的 `engine`
+
+另外，`llm.use_parser` 并不总是由 LLM 后端直接消费。对 `ContextEfficientAgentV2` 这类 Agent，真正读取的是 `agent_config["use_parser"]`；只有少数任务（如 `tool`）会把 `llm.use_parser` 显式复制到 `agent_config`。
 
 ### 2.2 `load_task()` —— Task 的实例化
 

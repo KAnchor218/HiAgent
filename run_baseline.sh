@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: bash run_baseline.sh [task] [--dry-run] [--no-conda] [--skip-validate]
+Usage: bash run_baseline.sh [task] [--dry-run] [--no-conda] [--skip-validate] [--background|-b]
 
 Supported tasks:
   blocksworld | gripper | barman | tyreworld | jericho
@@ -12,10 +12,13 @@ Supported tasks:
 Environment overrides:
   MODEL        default: xiaoai-gpt4-turbo
   AGENT        default: VanillaAgent
-  STEP         default: 50
+  STEP         default: 30
   MEMORY_SIZE  default: 100
   CONDA_ENV    default: hiagent
   LOG_ROOT     default: $PROJECT_PATH/logs
+
+Options:
+  --background, -b   Run in background (terminal close won't interrupt)
 EOF
 }
 
@@ -26,7 +29,7 @@ export NLTK_DATA="${NLTK_DATA:-$HOME/nltk_data}"
 
 MODEL="${MODEL:-xiaoai-gpt4-turbo}"
 AGENT="${AGENT:-VanillaAgent}"
-STEP="${STEP:-50}"
+STEP="${STEP:-30}"
 MEMORY_SIZE="${MEMORY_SIZE:-100}"
 CONDA_ENV="${CONDA_ENV:-hiagent}"
 LOG_ROOT="${LOG_ROOT:-$PROJECT_PATH/logs}"
@@ -36,6 +39,7 @@ TASK_SET=0
 DRY_RUN=0
 NO_CONDA=0
 SKIP_VALIDATE=0
+BACKGROUND=0
 
 while (($#)); do
   case "$1" in
@@ -51,6 +55,9 @@ while (($#)); do
       ;;
     --skip-validate)
       SKIP_VALIDATE=1
+      ;;
+    --background|-b)
+      BACKGROUND=1
       ;;
     -*)
       echo "[ERROR] Unknown option: $1" >&2
@@ -131,6 +138,7 @@ echo "==> model     : $MODEL"
 echo "==> agent     : $AGENT"
 echo "==> log dir   : $LOG_DIR"
 echo "==> tee to    : $LOG_FILE"
+echo "==> mode      : $([ "$BACKGROUND" -eq 1 ] && echo "background" || echo "foreground")"
 
 if [ "$DRY_RUN" -eq 1 ]; then
   printf '==> command   :'
@@ -140,9 +148,22 @@ if [ "$DRY_RUN" -eq 1 ]; then
 fi
 
 cd "$PROJECT_PATH"
-"${CMD[@]}" 2>&1 | tee "$LOG_FILE"
 
-echo
-echo "==> Done. Terminal log : $LOG_FILE"
-echo "==> Structured log     : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
-echo "==> Summary            : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+if [ "$BACKGROUND" -eq 1 ]; then
+  nohup "${CMD[@]}" > "$LOG_FILE" 2>&1 &
+  PID=$!
+  echo
+  echo "==> Background process started (PID: $PID)"
+  echo "==> Terminal log : $LOG_FILE"
+  echo "==> tail -f log  : tail -f $LOG_FILE"
+  echo "==> Stop process : kill $PID"
+  echo
+  echo "==> Structured log : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
+  echo "==> Summary        : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+else
+  "${CMD[@]}" 2>&1 | tee "$LOG_FILE"
+  echo
+  echo "==> Done. Terminal log : $LOG_FILE"
+  echo "==> Structured log     : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
+  echo "==> Summary            : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+fi

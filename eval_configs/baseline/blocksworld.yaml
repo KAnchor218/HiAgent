@@ -1,5 +1,5 @@
 run:
-  max_num_steps: 50
+  max_num_steps: 30
   wandb: False
   project_name: baseline-reproduction
   baseline_dir: data/baseline_results
@@ -10,6 +10,13 @@ agent:
   memory_size: 100
   need_goal: True
   use_parser: True
+
+# - baseline 里显式写 max_tokens: 100，是为了把
+#   运行参数写死、便于复现和看配置。
+# - hiagent 的 GPT 配置很多地方没显式写，但运行
+#   时实际默认值也还是 100。
+# - 换句话说，现在 baseline 里的这个字段大多是显
+#   式冗余，不是必须写了才会变成 100。
 
 llm:
   xiaoai-gpt4-turbo: &gpt4_turbo

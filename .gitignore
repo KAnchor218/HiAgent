@@ -24,3 +24,10 @@ GITHUB_GUIDE.md
 PROJECT_DOCUMENTATION.zh-CN.md
 baseline_复现指标对比.md
 __pycache__/
+
+# 论文 PDF / 本地截图（不入 git）
+*.pdf
+屏幕截图*.png
+
+# 新方法原型（在派生的 YourMethod 项目中维护，此处忽略）
+agentboard/agents/ours.py

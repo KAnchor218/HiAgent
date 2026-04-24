@@ -253,8 +253,8 @@ env:
     check_actions: "check valid actions"
     # problem_index: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
     # problem_index: [9]
-    # init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/ContextAgent/pddl.json
-    init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/VanillaAgent/pddl_vanilla_prompt.json
+    init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/ContextAgent/pddl.json
+    # init_prompt_path: ${PROJECT_PATH}/agentboard/prompts/VanillaAgent/pddl_vanilla_prompt.json
     label_path: ${PROJECT_PATH}/data/pddl/blocksworld.jsonl
 
   jericho:

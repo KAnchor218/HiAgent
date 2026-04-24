@@ -1,5 +1,5 @@
 run:
-  max_num_steps: 50
+  max_num_steps: 30
   wandb: False
   project_name: baseline-reproduction
   baseline_dir: data/baseline_results

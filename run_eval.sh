@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # HiAgent 评测启动脚本（含终端日志存档）
-# 用法：bash run_eval.sh [task_name]
+# 用法：bash run_eval.sh [--background|-b] [task_name]
+#
+#   参数：
+#     --background, -b   在后台运行（终端关闭不中断）
 #
 #   PDDL 规划任务（均使用 --tasks pddl，各自有专属 yaml）：
 #     blocksworld | gripper | barman | tyreworld
@@ -8,9 +11,33 @@
 #   文字冒险游戏（需先准备 jericho 游戏文件，见下方说明）：
 #     jericho
 #
-#   不传参数则默认 blocksworld
+#   不传 task_name 则默认 blocksworld
+#
+# 示例：
+#   bash run_eval.sh blocksworld                  # 前台运行
+#   bash run_eval.sh -b blocksworld               # 后台运行
+#   bash run_eval.sh --background                 # 后台运行，默认任务 blocksworld
 
 set -euo pipefail
+
+# ---------- 参数解析 ----------
+BACKGROUND=false
+TASK=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --background|-b)
+      BACKGROUND=true
+      shift
+      ;;
+    *)
+      TASK="$1"
+      shift
+      ;;
+  esac
+done
+
+TASK="${TASK:-blocksworld}"
 
 # ---------- 基本配置 ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -25,10 +52,9 @@ export NLTK_DATA="/home/cxw/nltk_data"
 
 MODEL="xiaoai-gpt4-turbo"
 AGENT="ContextEfficientAgentV2"
-STEP=50
+STEP=30
 MEMORY_SIZE=100
 
-TASK="${1:-blocksworld}"
 export EVALTASK="$TASK"
 
 # ---------- 根据任务名自动路由 CFG 和 --tasks 参数 ----------
@@ -68,7 +94,8 @@ echo "==> cfg       : $CFG"
 echo "==> task      : $TASK  (--tasks ${EVAL_TASK_ARG})"
 echo "==> model     : $MODEL"
 echo "==> log dir   : $LOG_DIR"
-echo "==> tee to    : $LOG_FILE"
+echo "==> log file  : $LOG_FILE"
+echo "==> mode      : $([ "$BACKGROUND" = true ] && echo "后台 (background)" || echo "前台 (foreground)")"
 echo
 
 # ---------- 激活虚拟环境 ----------
@@ -77,17 +104,37 @@ conda activate hiagent
 
 # ---------- 启动评测 ----------
 cd "$PROJECT_PATH"
-python -u agentboard/eval_main.py \
-    --cfg-path "$CFG" \
-    --tasks "$EVAL_TASK_ARG" \
-    --model "$MODEL" \
-    --log_path "$LOG_DIR" \
-    --max_num_steps "$STEP" \
-    --memory_size "$MEMORY_SIZE" \
-    --agent "$AGENT" \
-    2>&1 | tee "$LOG_FILE"
 
-echo
-echo "==> Done. Terminal log : $LOG_FILE"
-echo "==> Structured log     : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
-echo "==> Summary            : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+if [ "$BACKGROUND" = true ]; then
+    nohup python -u agentboard/eval_main.py \
+        --cfg-path "$CFG" \
+        --tasks "$EVAL_TASK_ARG" \
+        --model "$MODEL" \
+        --log_path "$LOG_DIR" \
+        --max_num_steps "$STEP" \
+        --memory_size "$MEMORY_SIZE" \
+        --agent "$AGENT" \
+        > "$LOG_FILE" 2>&1 &
+    PID=$!
+    echo "==> 后台进程已启动 (PID: $PID)"
+    echo "==> Terminal log : $LOG_FILE"
+    echo "==> 查看实时日志 : tail -f $LOG_FILE"
+    echo "==> 停止进程     : kill $PID"
+    echo
+    echo "==> Structured log : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
+    echo "==> Summary        : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+else
+    python -u agentboard/eval_main.py \
+        --cfg-path "$CFG" \
+        --tasks "$EVAL_TASK_ARG" \
+        --model "$MODEL" \
+        --log_path "$LOG_DIR" \
+        --max_num_steps "$STEP" \
+        --memory_size "$MEMORY_SIZE" \
+        --agent "$AGENT" \
+        2>&1 | tee "$LOG_FILE"
+    echo
+    echo "==> Done. Terminal log : $LOG_FILE"
+    echo "==> Structured log     : $LOG_DIR/logs/${EVAL_TASK_ARG}.jsonl"
+    echo "==> Summary            : $LOG_DIR/${EVAL_TASK_ARG}.txt"
+fi
