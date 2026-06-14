@@ -13,6 +13,7 @@ Key features:
 - 🔄 Dynamic memory updating and pruning mechanisms
 - 📝 Structured memory format for better information organization
 - 🤖 Compatible with various LLM backends
+- ⚙️ HiAgentEng engineering backend with subgoal summary cache and audit logs
 
 <div align="center">
 <img src="assets/main.png" alt="HiAgent Overview">
@@ -68,6 +69,74 @@ OPENAI_API_KEY=
 If the configuration is correct and the code runs successfully, you should see a series of prompts in the terminal.
 ```shell
 bash evaluate_model.sh
+```
+
+For the local reproduction scripts in this repository:
+
+```shell
+# Original HiAgent reproduction agent (ContextEfficientAgentV2)
+bash run_eval.sh blocksworld
+bash run_eval.sh gripper
+bash run_eval.sh barman
+bash run_eval.sh tyreworld
+
+# Engineering-optimized HiAgent backend
+bash run_hiagent_eng.sh tyreworld
+MODEL=xiaoai-gpt4-turbo bash run_hiagent_eng.sh barman
+```
+
+`run_hiagent_eng.sh` writes the standard task summary under `logs/` and also
+persists per-episode audit artifacts under:
+
+```text
+logs/HiAgentEng_<model>_<task>_step<step>_<timestamp>/
+  runs/
+    <task_id>/
+      prompt_logs.jsonl
+      trajectory.jsonl
+      retrieval_logs.jsonl
+      subgoals/
+        subgoal_000_raw.json
+        subgoal_000_summary.json
+        ...
+```
+
+### ⚙️ HiAgentEng
+
+`HiAgentEng` is an engineering-equivalent implementation of the paper method
+`ContextEfficientAgentV2`. It keeps the same subgoal chunking, observation
+summarization, and trajectory retrieval semantics, but avoids repeated summary
+generation by caching each completed subgoal summary once per episode.
+
+Main changes:
+
+- in-memory and on-disk summary cache for completed subgoals;
+- raw subgoal trajectory persistence for replay and auditing;
+- prompt, trajectory, and retrieval logs under `LOG_DIR/runs/<task_id>/`;
+- run/task-level cache isolation to avoid cross-run contamination.
+
+The main implementation files are:
+
+```text
+agentboard/agents/hiagent_eng.py
+agentboard/agents/memory_backend.py
+eval_configs/hiagent_eng/*.yaml
+run_hiagent_eng.sh
+```
+
+To run a 3-seed engineering-equivalence comparison against the original
+`ContextEfficientAgentV2`:
+
+```shell
+python3 scripts/test_hiagent_eng_cache.py
+bash scripts/run_n3_hiagenteng_vs_cev2.sh
+```
+
+To compare multiple task/model cells, override `MATRIX`:
+
+```shell
+MATRIX="barman:xiaoai-gpt4-turbo:eval_configs/hiagent_eng/barman.yaml tyreworld:xiaoai-gpt4-turbo:eval_configs/hiagent_eng/tyreworld.yaml" \
+  bash scripts/run_n3_cross_llm_env_hiagenteng_vs_cev2.sh
 ```
 
 

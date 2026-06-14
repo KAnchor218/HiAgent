@@ -211,6 +211,10 @@ def main():
         for key in env_config[task_name]:
             if key in ["check_actions", "check_inventory", "init_prompt_path"]:
                 agent_task_config[key] = env_config[task_name][key]
+        # Persistent-memory agents such as HiAgentEng need the run log path to
+        # create LOG_DIR/runs/<task_id>/ audit directories. Other agents ignore
+        # this optional config key.
+        agent_task_config["log_path"] = run_config.get("log_path")
 
         # 根据任务名加载对应的任务评估类（通过注册表动态查找）
         # tool-query 和 tool-operation 名称不同但共用同一个 tool 任务类，统一映射到 'tool'

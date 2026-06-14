@@ -77,7 +77,11 @@ class Evalalfworld(BaseTask):
         init_ob = ob.split('\n')[0]
         goal = ob.split('\n')[1].split("Your task is to:")[1].strip()
         
-        self.agent.reset(goal=goal, init_obs=init_ob)
+        task_id = f"alfworld_ep{index}"
+        try:
+            self.agent.reset(goal=goal, init_obs=init_ob, task_id=task_id)
+        except TypeError:
+            self.agent.reset(goal=goal, init_obs=init_ob)
         logger.goal("Example {} | Goal: {}".format(index, self.agent.goal))
         init_prompt_dict = copy.deepcopy(self.prompts)
         init_prompt_dict['examples'] = examples

@@ -118,7 +118,14 @@ class EvalPddl(BaseTask):
         game_name = env.game_name
         init_obs = env._get_obs()
         goal = env._get_goal()
-        self.agent.reset(goal, init_obs)
+        # HiAgentEng persists per-episode memory under LOG_DIR/runs/<task_id>/.
+        # Agents without task_id support keep the original reset path.
+        problem_index = self.env_configs[id].get("problem_index", id)
+        task_id = f"{game_name}_p{problem_index}"
+        try:
+            self.agent.reset(goal, init_obs, task_id=task_id)
+        except TypeError:
+            self.agent.reset(goal, init_obs)
         
         # trajectory无实际作用，只是用于记录并展示轨迹，作为日志使用而不作为参数使用。
         trajectory = []

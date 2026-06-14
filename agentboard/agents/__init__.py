@@ -4,9 +4,17 @@ from .custom_react import CustomReactAgent
 from common.registry import registry
 from .ours_agent import OurAgent
 from .cme_final import ContextEfficientAgentV2
+from .hiagent_eng import HiAgentEng
 
 # __all__ 用于定义当使用 'from agents import *' 时会被导入的模块成员列表。
-__all__ = ["VanillaAgent", "ReactAgent", "CustomReactAgent", "OurAgent", "ContextEfficientAgentV2"]
+__all__ = [
+    "VanillaAgent",
+    "ReactAgent",
+    "CustomReactAgent",
+    "OurAgent",
+    "ContextEfficientAgentV2",
+    "HiAgentEng",
+]
 
 
 def load_agent(name, config, llm_model):
